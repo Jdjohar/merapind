@@ -20,11 +20,12 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ provider }) => {
     null;
 
   // Destination: provider detail page (ensure you have app/providers/[id]/page.tsx)
-  const href = id ? `/provider/${id}` : '/providers';
+  const href = id ? `/providers/${id}` : '/providers';
 
-  const imgSrc = provider.imageUrl || provider.image || '/placeholder.png';
-  const title = provider.name || provider.businessName || 'Unnamed provider';
-  const category = provider.category || provider.service || 'General';
+  // use `as any` for optional fields not declared in your TS type
+  const imgSrc = (provider as any).imageUrl || (provider as any).image || '/placeholder.png';
+  const title = provider.name || (provider as any).businessName || 'Unnamed provider';
+  const category = provider.category || (provider as any).service || 'General';
 
   return (
     <div className="group flex flex-col bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 ease-in-out transform hover:-translate-y-1">
@@ -81,7 +82,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ provider }) => {
 
           {/* If you want chat to include provider id, change href below to `/chat?providerId=${id}` */}
           <Link
-            href="/chat"
+            href={id ? `/chat?providerId=${id}` : '/chat'}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-xl flex items-center justify-center transition-colors"
             aria-label="Chat"
           >
