@@ -27,7 +27,7 @@ app.use(morgan('dev'));
 // CORS - configure once, BEFORE routes
 const allowedOrigins = [
   "http://localhost:3000",
-  "https://maurya-electronics-mk.vercel.app"
+  "https://merapind-eight.vercel.app"
 ];
 
 const corsOptions = {
