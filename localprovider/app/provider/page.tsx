@@ -1,7 +1,7 @@
 // app/providers/page.tsx
 'use client';
 import React, { useEffect, useState, useCallback } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ServiceCard from '../../components/ServiceCard';
 import SEO from '../../components/SEO';
@@ -24,19 +24,29 @@ type Provider = {
 };
 
 export default function ProvidersPage() {
-  const searchParams = useSearchParams();
   const router = useRouter();
 
-  const qParam = searchParams.get('q') || '';
-  const categoryParam = searchParams.get('category') || '';
-  const pageParam = Number(searchParams.get('page') || '1');
+  // read initial params from window.location.search (avoids useSearchParams hook)
+  const getInitialParams = () => {
+    if (typeof window === 'undefined') return { q: '', category: '', page: 1 };
+    const sp = new URLSearchParams(window.location.search);
+    return {
+      q: sp.get('q') || '',
+      category: sp.get('category') || '',
+      page: Number(sp.get('page') || '1'),
+    };
+  };
 
-  const [query, setQuery] = useState(qParam);
+  const initial = getInitialParams();
+
+  const [query, setQuery] = useState<string>(initial.q);
+  const [categoryParam] = useState<string>(initial.category);
+  const [page, setPage] = useState<number>(initial.page || 1);
+
   const [providers, setProviders] = useState<Provider[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(pageParam || 1);
-  const [limit] = useState(12);
+  const [limit] = useState<number>(12);
   const [total, setTotal] = useState<number | null>(null);
 
   const buildUrl = useCallback(() => {
@@ -78,20 +88,39 @@ export default function ProvidersPage() {
     }
   }, [buildUrl]);
 
+  // sync with URL when user navigates (listen to popstate)
   useEffect(() => {
-    setQuery(qParam);
-    setPage(pageParam || 1);
-    fetchProviders();
+    const onPop = () => {
+      const sp = new URLSearchParams(window.location.search);
+      const q = sp.get('q') || '';
+      const p = Number(sp.get('page') || '1');
+      setQuery(q);
+      setPage(p);
+      // fetch new data
+      fetchProviders();
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qParam, categoryParam, pageParam]);
+  }, []);
+
+  // initial fetch + whenever query/page changes
+  useEffect(() => {
+    // whenever page or query changes we want to fetch
+    fetchProviders();
+  }, [fetchProviders, page, query]);
 
   function onSearchSubmit(e?: React.FormEvent) {
     if (e) e.preventDefault();
     const params = new URLSearchParams();
     if (query) params.set('q', query);
     if (categoryParam) params.set('category', categoryParam);
-    // reset to page 1
+    // reset to page 1 when performing a new search
+    params.set('page', '1');
     router.push(`/providers?${params.toString()}`);
+    // update internal state and fetch
+    setPage(1);
+    fetchProviders();
   }
 
   function goToPage(nextPage: number) {
@@ -100,6 +129,8 @@ export default function ProvidersPage() {
     if (categoryParam) params.set('category', categoryParam);
     params.set('page', String(nextPage));
     router.push(`/providers?${params.toString()}`);
+    setPage(nextPage);
+    // fetchProviders will run via effect
   }
 
   return (
