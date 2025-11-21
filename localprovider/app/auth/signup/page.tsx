@@ -7,16 +7,6 @@ import { Mail, Lock, Chrome, User as UserIcon, Briefcase, ArrowLeft } from 'luci
 import { useRouter } from 'next/navigation';
 import SEO from '../../../components/SEO';
 
-/**
- * Signup page (client component) for /auth/signup
- * - Includes User / Service Provider toggle
- * - Basic client-side validation
- * - Posts to /api/auth/signup (expects JSON { ok: true, user, token })
- * - Dev: saves token to localStorage (NOT for production)
- *
- * Note: logoSrc is a local path you provided; your environment/tooling will map
- * the path to a usable URL. If you move the image to /public, update accordingly.
- */
 export default function SignupPage() {
   const router = useRouter();
   const [userType, setUserType] = useState<'user' | 'provider'>('user');
@@ -59,9 +49,10 @@ export default function SignupPage() {
         name: form.name.trim(),
         email: form.email.trim().toLowerCase(),
         password: form.password,
-        role: userType === 'PROVIDER' ? 'PROVIDER' : 'USER'
+        // FIXED: userType is 'user' | 'provider' — backend expects 'USER' or 'PROVIDER'
+        role: userType === 'provider' ? 'PROVIDER' : 'USER'
       };
-      if (userType === 'PROVIDER') payload.businessName = form.businessName.trim();
+      if (userType === 'provider') payload.businessName = form.businessName.trim();
 
       const res = await fetch(`${BASE_URL}/api/auth/signup`, {
         method: 'POST',
@@ -80,10 +71,14 @@ export default function SignupPage() {
       if (json?.token) {
         try { localStorage.setItem('token', json.token); } catch { }
       }
+      if (json?.user) {
+        try { localStorage.setItem('user', JSON.stringify(json.user)); } catch {}
+        try { sessionStorage.setItem('user', JSON.stringify(json.user)); } catch {}
+      }
 
       // redirect to dashboard or homepage
       if (json?.user?.role === 'PROVIDER') {
-        router.push('/provider/create');   // 
+        router.push('/provider/create');
       } else {
         router.push('/');
       }
