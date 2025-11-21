@@ -1,0 +1,88 @@
+// constants.ts
+import { ServiceProvider, Review } from './types';
+
+export const CATEGORIES = [
+  { id: '1', name: 'Plumber', slug: 'plumber', color: 'bg-blue-100 text-blue-600' },
+  { id: '2', name: 'Electrician', slug: 'electrician', color: 'bg-yellow-100 text-yellow-600' },
+  { id: '3', name: 'Carpenter', slug: 'carpenter', color: 'bg-amber-100 text-amber-600' },
+  { id: '4', name: 'Cleaner', slug: 'cleaner', color: 'bg-green-100 text-green-600' },
+  { id: '5', name: 'Painter', slug: 'painter', color: 'bg-purple-100 text-purple-600' },
+  { id: '6', name: 'HVAC', slug: 'hvac', color: 'bg-cyan-100 text-cyan-600' },
+];
+
+const MOCK_REVIEWS: Review[] = [
+  { id: 'r1', userId: 'u1', userName: 'Alice Johnson', rating: 5, comment: 'Excellent work! Arrived on time and fixed the leak quickly.', date: '2023-10-15' },
+  { id: 'r2', userId: 'u2', userName: 'Mark Smith', rating: 4, comment: 'Good job, but slightly expensive.', date: '2023-09-20' },
+];
+
+export const MOCK_PROVIDERS: ServiceProvider[] = [
+  {
+    id: 'p1',
+    name: 'Mike The Plumber',
+    category: 'Plumber',
+    rating: 4.9,
+    reviewCount: 124,
+    hourlyRate: 85,
+    description: 'Licensed master plumber with 15 years of experience...',
+    imageUrl: 'https://picsum.photos/id/64/300/300',
+    isVerified: true,
+    location: 'Downtown Metro',
+    availability: 'Available Now',
+    tags: ['Emergency', 'Leak Repair', 'Pipe Fitting'],
+    reviews: MOCK_REVIEWS,
+    // ADD coordinates:
+    lat: 40.7128,
+    lng: -74.0060,
+  },
+  {
+    id: 'p2',
+    name: 'Bright Spark Electric',
+    category: 'Electrician',
+    rating: 4.8,
+    reviewCount: 89,
+    hourlyRate: 95,
+    description: 'Certified electrician specializing in smart home installations...',
+    imageUrl: 'https://picsum.photos/id/91/300/300',
+    isVerified: true,
+    location: 'Westside',
+    availability: 'Schedule Only',
+    tags: ['Smart Home', 'Wiring', 'Lighting'],
+    reviews: [],
+    lat: 30.245,
+    lng: 75.842,
+  },
+  {
+    id: 'p3',
+    name: 'WoodWorks Pro',
+    category: 'Carpenter',
+    rating: 4.7,
+    reviewCount: 45,
+    hourlyRate: 70,
+    description: 'Custom cabinetry, furniture repair, and structural framing.',
+    imageUrl: 'https://picsum.photos/id/103/300/300',
+    isVerified: false,
+    location: 'Suburbs',
+    availability: 'Available Tomorrow',
+    tags: ['Cabinetry', 'Framing', 'Decks'],
+    reviews: [],
+     lat: 30.200,
+    lng: 75.842,
+  },
+  {
+    id: 'p4',
+    name: 'Spotless Cleaners',
+    category: 'Cleaner',
+    rating: 4.6,
+    reviewCount: 210,
+    hourlyRate: 40,
+    description: 'Deep cleaning services for homes and offices.',
+    imageUrl: 'https://picsum.photos/id/21/300/300',
+    isVerified: true,
+    location: 'City Center',
+    availability: 'Available Now',
+    tags: ['Deep Clean', 'Eco-Friendly', 'Move-out'],
+    reviews: [],
+    lat: 30.664,
+    lng: 74.744,
+  },
+];
