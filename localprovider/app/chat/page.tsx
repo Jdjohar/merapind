@@ -1,7 +1,12 @@
 // app/chat/page.tsx
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  Suspense,
+} from 'react';
 import io, { Socket } from 'socket.io-client';
 import { Send, Mic, X } from 'lucide-react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -37,11 +42,16 @@ type ChatSummary = {
   provider?: { _id?: string; name?: string; imageUrl?: string };
 };
 
-const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
+const BACKEND =
+  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
 
 let socket: Socket | null = null;
 
-export default function ChatPage() {
+/**
+ * Inner client component that actually uses hooks like useSearchParams.
+ * This MUST be wrapped in <Suspense> at the page level.
+ */
+function ChatPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const providerId = (searchParams?.get('providerId') as string) || '';
@@ -52,34 +62,21 @@ export default function ChatPage() {
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [mediaRecorder, setMediaRecorder] =
+    useState<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // helpers
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const userNearBottomRef = useRef(true);
+
   const getTokenFromStorage = () => {
     try {
-      return localStorage.getItem('token') || sessionStorage.getItem('token') || null;
-    } catch {
-      return null;
-    }
-  };
-
-  const parseJwt = (token?: string | null) => {
-    try {
-      if (!token) return null;
-      const b = token.split('.')[1];
-      if (!b) return null;
-      const base64 = b.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map(function (c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-          })
-          .join('')
+      return (
+        localStorage.getItem('token') ||
+        sessionStorage.getItem('token') ||
+        null
       );
-      return JSON.parse(jsonPayload);
     } catch {
       return null;
     }
@@ -99,7 +96,10 @@ export default function ChatPage() {
   };
 
   const convertServerMsg = (m: ServerMsg): UIMessage => ({
-    id: m._id ?? m.tempId ?? `${Math.random().toString(36).slice(2)}`,
+    id:
+      m._id ??
+      m.tempId ??
+      `${Math.random().toString(36).slice(2)}`,
     senderId: m.senderId,
     text: m.text,
     audioUrl: m.audioUrl,
@@ -107,73 +107,65 @@ export default function ChatPage() {
     isMe: getMyUserIdFromToken() === m.senderId,
   });
 
- const scrollToBottom = (opts: { smooth?: boolean; force?: boolean } = {}) => {
-  const smooth = opts.smooth ?? true;
-  const force = opts.force ?? false;
-  const el = messagesEndRef.current;
-  if (!el) return;
+  const scrollToBottom = (opts: {
+    smooth?: boolean;
+    force?: boolean;
+  } = {}) => {
+    const smooth = opts.smooth ?? true;
+    const el = messagesEndRef.current;
+    if (!el) return;
 
-  // messagesEndRef is an empty div at the end of the list.
-  // we'll use scrollIntoView for simplicity.
-  try {
-    if (smooth) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    } else {
-      el.scrollIntoView({ behavior: 'auto', block: 'end' });
+    try {
+      el.scrollIntoView({
+        behavior: smooth ? 'smooth' : 'auto',
+        block: 'end',
+      });
+    } catch {
+      const container = el.parentElement;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
     }
-  } catch {
-    // fallback: try container scrollTop manipulation
-    const container = el.parentElement;
-    if (container) {
-      if (force) container.scrollTop = container.scrollHeight;
-      else container.scrollTop = container.scrollHeight;
-    }
-  }
-};
-const containerRef = useRef<HTMLDivElement | null>(null);
-const userNearBottomRef = useRef(true);
-useEffect(() => {
-  const container = containerRef.current;
-  if (!container) return;
-
-  const onScroll = () => {
-    const threshold = 150; // px from bottom to still be considered "near bottom"
-    const distanceFromBottom = container.scrollHeight - (container.scrollTop + container.clientHeight);
-    userNearBottomRef.current = distanceFromBottom < threshold;
   };
 
-  // initial compute
-  onScroll();
-  container.addEventListener('scroll', onScroll, { passive: true });
+  // track if user is near bottom
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-  return () => {
-    container.removeEventListener('scroll', onScroll);
-  };
-}, []);
+    const onScroll = () => {
+      const threshold = 150;
+      const distanceFromBottom =
+        container.scrollHeight -
+        (container.scrollTop + container.clientHeight);
+      userNearBottomRef.current = distanceFromBottom < threshold;
+    };
 
-// 3) Auto-scroll when messages change — but only if user is near bottom.
-// If you want to always jump to latest (e.g., when opening a chat) pass force = true below.
-useEffect(() => {
-  // run on next paint so DOM nodes exist
-  requestAnimationFrame(() => {
-    if (userNearBottomRef.current) {
-      scrollToBottom({ smooth: true });
-    }
-  });
-}, [messages.length]); // triggers whenever messages change
+    onScroll();
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', onScroll);
+    };
+  }, []);
 
-// 4) When opening a chat (chat._id changes) force-scroll to bottom
-useEffect(() => {
-  if (!chat) return;
-  // give the fetch & render a micro tick (or two) then force-scroll
-  const id = setTimeout(() => {
-    scrollToBottom({ smooth: false, force: true });
-  }, 50);
-  return () => clearTimeout(id);
-}, [chat?._id]);
+  // auto-scroll on new messages only if user near bottom
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      if (userNearBottomRef.current) {
+        scrollToBottom({ smooth: true });
+      }
+    });
+  }, [messages.length]);
 
+  // force scroll when switching chats
+  useEffect(() => {
+    if (!chat) return;
+    const id = setTimeout(() => {
+      scrollToBottom({ smooth: false, force: true });
+    }, 50);
+    return () => clearTimeout(id);
+  }, [chat?._id]);
 
-  // Fetch chat summaries (for left sidebar) and auto-join rooms
   async function fetchChatsAndJoin() {
     try {
       const tokenNow = getTokenFromStorage();
@@ -182,7 +174,9 @@ useEffect(() => {
         credentials: 'include',
         headers: {
           Accept: 'application/json',
-          ...(tokenNow ? { Authorization: `Bearer ${tokenNow}` } : {}),
+          ...(tokenNow
+            ? { Authorization: `Bearer ${tokenNow}` }
+            : {}),
         },
       });
       if (!res.ok) {
@@ -191,10 +185,13 @@ useEffect(() => {
         return;
       }
       const json = await res.json();
-      const arr = Array.isArray(json) ? json : Array.isArray(json?.chats) ? json.chats : [];
+      const arr = Array.isArray(json)
+        ? json
+        : Array.isArray(json?.chats)
+        ? json.chats
+        : [];
       setChats(arr);
 
-      // join rooms for each chat (so provider receives messages)
       for (const c of arr) {
         const cid = c._id || (c as any).id;
         if (cid && socket?.emit) {
@@ -221,63 +218,76 @@ useEffect(() => {
     socket.on('connect', async () => {
       console.log('socket connected', socket?.id);
 
-      // ensure we have a single handler and it can reconcile tempId
       socket?.off('receive_message');
       socket?.on('receive_message', (msg: ServerMsg) => {
-        // server authoritative broadcast
         console.debug('receive_message', msg);
 
-        // If server included a tempId, replace local temp message
         if (msg.tempId) {
-          setMessages(prev => {
+          setMessages((prev) => {
             let replaced = false;
-            const out = prev.map(m => {
+            const out = prev.map((m) => {
               if (m.id === msg.tempId) {
                 replaced = true;
                 return convertServerMsg(msg);
               }
               return m;
             });
-            // if not replaced (client didn't have temp), append if not duplicate
             if (!replaced) {
-              if (msg._id && out.some(m => m.id === msg._id)) return out;
+              if (msg._id && out.some((m) => m.id === msg._id))
+                return out;
               out.push(convertServerMsg(msg));
             }
             return out;
           });
           scrollToBottom();
-          // update chats preview if needed
           if (msg.chatId) {
-            setChats(prev => prev.map(c => {
-              if ((c._id || (c as any).id) === msg.chatId) {
-                return { ...c, lastMessage: msg.text || (msg.audioUrl ? 'Audio' : ''), lastTimestamp: msg.createdAt || new Date().toISOString() };
-              }
-              return c;
-            }));
+            setChats((prev) =>
+              prev.map((c) => {
+                if ((c._id || (c as any).id) === msg.chatId) {
+                  return {
+                    ...c,
+                    lastMessage:
+                      msg.text || (msg.audioUrl ? 'Audio' : ''),
+                    lastTimestamp:
+                      msg.createdAt || new Date().toISOString(),
+                  };
+                }
+                return c;
+              })
+            );
           }
           return;
         }
 
-        // normal flow: dedupe by _id then append
-        setMessages(prev => {
-          if (msg._id && prev.some(m => m.id === msg._id)) return prev;
+        setMessages((prev) => {
+          if (msg._id && prev.some((m) => m.id === msg._id))
+            return prev;
           return [...prev, convertServerMsg(msg)];
         });
         scrollToBottom();
 
-        // update chats preview (lastMessage, lastTimestamp)
         if (msg.chatId) {
-          setChats(prev =>
+          setChats((prev) =>
             prev
-              .map(c => {
+              .map((c) => {
                 if ((c._id || (c as any).id) === msg.chatId) {
-                  return { ...c, lastMessage: msg.text || (msg.audioUrl ? 'Audio' : ''), lastTimestamp: msg.createdAt || new Date().toISOString() };
+                  return {
+                    ...c,
+                    lastMessage:
+                      msg.text || (msg.audioUrl ? 'Audio' : ''),
+                    lastTimestamp:
+                      msg.createdAt || new Date().toISOString(),
+                  };
                 }
                 return c;
               })
               .sort((a, b) => {
-                const ta = a.lastTimestamp ? new Date(a.lastTimestamp).getTime() : 0;
-                const tb = b.lastTimestamp ? new Date(b.lastTimestamp).getTime() : 0;
+                const ta = a.lastTimestamp
+                  ? new Date(a.lastTimestamp).getTime()
+                  : 0;
+                const tb = b.lastTimestamp
+                  ? new Date(b.lastTimestamp).getTime()
+                  : 0;
                 return tb - ta;
               })
           );
@@ -292,7 +302,6 @@ useEffect(() => {
         console.log('socket disconnected', reason);
       });
 
-      // fetch chats after socket connected (so join emits work)
       await fetchChatsAndJoin();
     });
 
@@ -308,19 +317,25 @@ useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        // If providerId supplied (user initiating chat with provider), create/get chat
         if (providerId) {
           const tokenNow = getTokenFromStorage();
-          const res = await fetch(`${BACKEND}/api/chats/get-or-create`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: tokenNow ? `Bearer ${tokenNow}` : '',
-            },
-            body: JSON.stringify({ providerId }),
-          });
+          const res = await fetch(
+            `${BACKEND}/api/chats/get-or-create`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: tokenNow ? `Bearer ${tokenNow}` : '',
+              },
+              body: JSON.stringify({ providerId }),
+            }
+          );
           if (!res.ok) {
-            console.error('open chat failed', res.status, await res.text().catch(() => ''));
+            console.error(
+              'open chat failed',
+              res.status,
+              await res.text().catch(() => '')
+            );
             return;
           }
           const data = await res.json();
@@ -328,37 +343,45 @@ useEffect(() => {
           const cid = data._id ?? data.id;
           if (cid) {
             setChat({ _id: cid });
-            // join room
             if (socket?.emit) socket.emit('join_chat', cid);
 
-            // fetch messages for that chat
-            const msgsRes = await fetch(`${BACKEND}/api/chats/${cid}/messages`, {
-              headers: { Authorization: tokenNow ? `Bearer ${tokenNow}` : '' },
-            });
+            const msgsRes = await fetch(
+              `${BACKEND}/api/chats/${cid}/messages`,
+              {
+                headers: {
+                  Authorization: tokenNow ? `Bearer ${tokenNow}` : '',
+                },
+              }
+            );
             if (msgsRes.ok) {
               const msgs: ServerMsg[] = await msgsRes.json();
               setMessages(msgs.map(convertServerMsg));
               scrollToBottom();
             }
           }
-        }
-
-        // If chatIdFromQuery supplied (provider opening existing chat), open it
-        else if (chatIdFromQuery) {
+        } else if (chatIdFromQuery) {
           const tokenNow = getTokenFromStorage();
           const cid = chatIdFromQuery;
           setChat({ _id: cid });
           if (socket?.emit) socket.emit('join_chat', cid);
 
-          const msgsRes = await fetch(`${BACKEND}/api/chats/${cid}/messages`, {
-            headers: { Authorization: tokenNow ? `Bearer ${tokenNow}` : '' },
-          });
+          const msgsRes = await fetch(
+            `${BACKEND}/api/chats/${cid}/messages`,
+            {
+              headers: {
+                Authorization: tokenNow ? `Bearer ${tokenNow}` : '',
+              },
+            }
+          );
           if (msgsRes.ok) {
             const msgs: ServerMsg[] = await msgsRes.json();
             setMessages(msgs.map(convertServerMsg));
             scrollToBottom();
           } else {
-            console.warn('Could not fetch messages', msgsRes.status);
+            console.warn(
+              'Could not fetch messages',
+              msgsRes.status
+            );
           }
         }
       } catch (err) {
@@ -372,13 +395,12 @@ useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providerId, chatIdFromQuery]);
 
-  // Fetch chats when page loads (in case socket isn't connected yet)
+  // Fetch chats on load as fallback
   useEffect(() => {
     fetchChatsAndJoin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // send text message (optimistic with tempId)
   const handleSend = async () => {
     if (!inputText.trim()) return;
     if (!chat) {
@@ -387,8 +409,9 @@ useEffect(() => {
     }
     const chatId = chat._id;
 
-    // create temp message locally for immediate UI feedback
-    const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const tempId = `temp_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2)}`;
     const tempMsg: UIMessage = {
       id: tempId,
       senderId: getMyUserIdFromToken() || 'me',
@@ -396,60 +419,68 @@ useEffect(() => {
       timestamp: new Date().toISOString(),
       isMe: true,
     };
-    setMessages(prev => [...prev, tempMsg]);
+    setMessages((prev) => [...prev, tempMsg]);
     scrollToBottom();
     setInputText('');
 
     try {
       const tokenNow = getTokenFromStorage();
-      // include tempId so server echoes it back
-      const res = await fetch(`${BACKEND}/api/chats/${chatId}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: tokenNow ? `Bearer ${tokenNow}` : '',
-        },
-        body: JSON.stringify({ text: tempMsg.text, tempId }),
-      });
+      const res = await fetch(
+        `${BACKEND}/api/chats/${chatId}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: tokenNow ? `Bearer ${tokenNow}` : '',
+          },
+          body: JSON.stringify({ text: tempMsg.text, tempId }),
+        }
+      );
 
       if (!res.ok) {
-        // remove temp message if server failed
-        setMessages(prev => prev.filter(m => m.id !== tempId));
+        setMessages((prev) =>
+          prev.filter((m) => m.id !== tempId)
+        );
         const txt = await res.text().catch(() => '');
         console.error('send failed', res.status, txt);
         return;
       }
 
-      // server will broadcast authoritative message (with tempId); server response can be used to reconcile too
       const saved: ServerMsg = await res.json();
       if (saved.tempId) {
-        setMessages(prev => prev.map(m => (m.id === saved.tempId ? convertServerMsg(saved) : m)));
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === saved.tempId ? convertServerMsg(saved) : m
+          )
+        );
       } else if (saved._id) {
-        // fallback: replace by temp id mapping, or append if not present
-        setMessages(prev => {
-          if (prev.some(m => m.id === saved._id)) return prev;
-          return prev.map(m => (m.id === tempId ? convertServerMsg(saved) : m));
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === saved._id)) return prev;
+          return prev.map((m) =>
+            m.id === tempId ? convertServerMsg(saved) : m
+          );
         });
       }
       scrollToBottom();
     } catch (err) {
       console.error('send error', err);
-      // on error, remove temp message
-      setMessages(prev => prev.filter(m => m.id !== tempId));
+      setMessages((prev) =>
+        prev.filter((m) => m.id !== tempId)
+      );
     }
   };
 
-  // upload audio and send (with optimistic local message)
   async function uploadAndSendAudio(blob: Blob) {
     if (!chat) {
       alert('No chat selected');
       return;
     }
 
-    const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const tempId = `temp_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2)}`;
     const localUrl = URL.createObjectURL(blob);
 
-    // optimistic local audio message
     const tempMsg: UIMessage = {
       id: tempId,
       senderId: getMyUserIdFromToken() || 'me',
@@ -458,11 +489,10 @@ useEffect(() => {
       timestamp: new Date().toISOString(),
       isMe: true,
     };
-    setMessages(prev => [...prev, tempMsg]);
+    setMessages((prev) => [...prev, tempMsg]);
     scrollToBottom();
 
     try {
-      // upload audio file to backend (Cloudinary)
       const form = new FormData();
       form.append('file', blob, 'voice.webm');
       const tokenNow = getTokenFromStorage();
@@ -470,82 +500,113 @@ useEffect(() => {
       const resp = await fetch(`${BACKEND}/api/uploads/audio`, {
         method: 'POST',
         body: form,
-        headers: tokenNow ? { Authorization: `Bearer ${tokenNow}` } : undefined,
+        headers: tokenNow
+          ? { Authorization: `Bearer ${tokenNow}` }
+          : undefined,
       });
 
       if (!resp.ok) {
-        setMessages(prev => prev.filter(m => m.id !== tempId));
-        console.error('audio upload failed', resp.status, await resp.text().catch(() => ''));
+        setMessages((prev) =>
+          prev.filter((m) => m.id !== tempId)
+        );
+        console.error(
+          'audio upload failed',
+          resp.status,
+          await resp.text().catch(() => '')
+        );
         alert('Audio upload failed');
         return;
       }
 
       const upJson = await resp.json();
-      const audioUrl = upJson?.audioUrl || upJson?.url || upJson?.secure_url;
+      const audioUrl =
+        upJson?.audioUrl ||
+        upJson?.url ||
+        upJson?.secure_url;
       if (!audioUrl) {
-        setMessages(prev => prev.filter(m => m.id !== tempId));
+        setMessages((prev) =>
+          prev.filter((m) => m.id !== tempId)
+        );
         console.error('upload returned no audioUrl', upJson);
         alert('Audio upload failed (no URL returned)');
         return;
       }
 
-      // save message to DB (include tempId so server can echo it)
-      const saveRes = await fetch(`${BACKEND}/api/chats/${chat._id}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: tokenNow ? `Bearer ${tokenNow}` : '',
-        },
-        body: JSON.stringify({ audioUrl, tempId }),
-      });
+      const saveRes = await fetch(
+        `${BACKEND}/api/chats/${chat._id}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: tokenNow ? `Bearer ${tokenNow}` : '',
+          },
+          body: JSON.stringify({ audioUrl, tempId }),
+        }
+      );
 
       if (!saveRes.ok) {
-        setMessages(prev => prev.filter(m => m.id !== tempId));
-        console.error('audio message save failed', saveRes.status, await saveRes.text().catch(() => ''));
+        setMessages((prev) =>
+          prev.filter((m) => m.id !== tempId)
+        );
+        console.error(
+          'audio message save failed',
+          saveRes.status,
+          await saveRes.text().catch(() => '')
+        );
         alert('Failed to save audio message');
         return;
       }
 
       const saved: ServerMsg = await saveRes.json();
 
-      // reconcile: server should broadcast, but if it returned saved, replace temp now
       if (saved.tempId) {
-        setMessages(prev => prev.map(m => (m.id === saved.tempId ? convertServerMsg(saved) : m)));
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === saved.tempId ? convertServerMsg(saved) : m
+          )
+        );
       } else if (saved._id) {
-        setMessages(prev => prev.map(m => (m.id === tempId ? convertServerMsg(saved) : m)));
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempId ? convertServerMsg(saved) : m
+          )
+        );
       }
 
-      // free local blob url if it was used
       try {
         URL.revokeObjectURL(localUrl);
       } catch {}
       scrollToBottom();
     } catch (err) {
       console.error('upload/send audio failed', err);
-      setMessages(prev => prev.filter(m => m.id !== tempId));
+      setMessages((prev) =>
+        prev.filter((m) => m.id !== tempId)
+      );
       alert('Upload/send audio failed');
     }
   }
 
-  // record toggle UI - creates MediaRecorder and handles onstop -> uploadAndSendAudio
   const startRecording = async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       alert('Recording not supported in this browser');
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream =
+        await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream);
       setMediaRecorder(mr);
       chunksRef.current = [];
 
       mr.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+        if (e.data && e.data.size > 0)
+          chunksRef.current.push(e.data);
       };
 
       mr.onstop = async () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        // send audio with optimistic UI
+        const blob = new Blob(chunksRef.current, {
+          type: 'audio/webm',
+        });
         await uploadAndSendAudio(blob);
       };
 
@@ -564,7 +625,7 @@ useEffect(() => {
 
   return (
     <div className="h-[calc(100vh-64px)] bg-gray-100 flex">
-      {/* Left sidebar: chats */}
+      {/* Left sidebar */}
       <div className="hidden md:flex flex-col w-80 bg-white border-r border-gray-200">
         <div className="p-4 border-b">
           <h2 className="text-xl font-bold">Messages</h2>
@@ -572,31 +633,56 @@ useEffect(() => {
 
         <div className="overflow-y-auto flex-1">
           {chats.length === 0 ? (
-            <div className="p-4 text-sm text-gray-500">No conversations yet.</div>
+            <div className="p-4 text-sm text-gray-500">
+              No conversations yet.
+            </div>
           ) : (
             <ul className="divide-y">
-              {chats.map(c => {
+              {chats.map((c) => {
                 const id = c._id || (c as any).id;
-                 const otherName = (c.userId && c.userId.name) || (c.providerId && c.providerId.name) || 'Conversation';
+                const otherName =
+                  (c.userId && (c.userId as any).name) ||
+                  (c.providerId &&
+                    (c.providerId as any).name) ||
+                  'Conversation';
                 const last = c.lastMessage || '—';
-                const time = c.lastTimestamp ? new Date(c.lastTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-                const selected = chat && chat._id === id;
+                const time = c.lastTimestamp
+                  ? new Date(
+                      c.lastTimestamp
+                    ).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                  : '';
+                const selected =
+                  chat && chat._id === String(id);
                 return (
                   <li
                     key={id}
-                    className={`p-3 cursor-pointer hover:bg-gray-50 ${selected ? 'bg-blue-50' : ''}`}
+                    className={`p-3 cursor-pointer hover:bg-gray-50 ${
+                      selected ? 'bg-blue-50' : ''
+                    }`}
                     onClick={() => {
-                      router.push(`/chat?chatId=${encodeURIComponent(String(id))}`);
-                      // setChat will be handled by effect which reads chatIdFromQuery
+                      router.push(
+                        `/chat?chatId=${encodeURIComponent(
+                          String(id)
+                        )}`
+                      );
                       setChat({ _id: String(id) });
                     }}
                   >
                     <div className="flex justify-between items-start">
                       <div>
-                        <div className="font-semibold text-gray-900">{otherName}</div>
-                        <div className="text-xs text-gray-500 mt-1 line-clamp-2">{last}</div>
+                        <div className="font-semibold text-gray-900">
+                          {otherName}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1 line-clamp-2">
+                          {last}
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-400">{time}</div>
+                      <div className="text-xs text-gray-400">
+                        {time}
+                      </div>
                     </div>
                   </li>
                 );
@@ -612,24 +698,57 @@ useEffect(() => {
           <div>
             <h3 className="font-bold">Chat</h3>
             <div className="text-xs text-gray-500">
-              {providerId ? `Provider: ${providerId}` : chat ? `Chat: ${chat._id}` : 'No conversation selected'}
+              {providerId
+                ? `Provider: ${providerId}`
+                : chat
+                ? `Chat: ${chat._id}`
+                : 'No conversation selected'}
             </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map(msg => (
-            <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[75%] rounded-2xl px-4 py-3 shadow-sm ${msg.isMe ? 'bg-blue-600 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}>
+        <div
+          ref={containerRef}
+          className="flex-1 overflow-y-auto p-4 space-y-4"
+        >
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`flex ${
+                msg.isMe ? 'justify-end' : 'justify-start'
+              }`}
+            >
+              <div
+                className={`max-w-[75%] rounded-2xl px-4 py-3 shadow-sm ${
+                  msg.isMe
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-900 border border-gray-200'
+                }`}
+              >
                 {msg.audioUrl ? (
                   <div className="min-w-[150px] flex items-center gap-3">
                     <audio controls src={msg.audioUrl} />
-                    {/* show spinner if this is a temporary message (id starts with temp_) */}
                     {String(msg.id).startsWith('temp_') && (
                       <div className="ml-2 text-xs text-gray-200 flex items-center gap-2">
-                        <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
-                          <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                        <svg
+                          className="w-4 h-4 animate-spin"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                        >
+                          <circle
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            strokeOpacity="0.25"
+                          />
+                          <path
+                            d="M22 12a10 10 0 0 1-10 10"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                          />
                         </svg>
                         Uploading…
                       </div>
@@ -637,14 +756,24 @@ useEffect(() => {
                   </div>
                 ) : (
                   <>
-                    <p className="whitespace-pre-wrap">{msg.text}</p>
-                    {/* spinner for optimistic text */}
+                    <p className="whitespace-pre-wrap">
+                      {msg.text}
+                    </p>
                     {String(msg.id).startsWith('temp_') && (
-                      <div className="text-xs text-gray-200 mt-2">Sending…</div>
+                      <div className="text-xs text-gray-200 mt-2">
+                        Sending…
+                      </div>
                     )}
                   </>
                 )}
-                <div className="text-[10px] mt-1 text-right text-gray-400">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                <div className="text-[10px] mt-1 text-right text-gray-400">
+                  {new Date(
+                    msg.timestamp
+                  ).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </div>
               </div>
             </div>
           ))}
@@ -656,9 +785,14 @@ useEffect(() => {
             <div className="flex items-center justify-between bg-red-50 text-red-600 px-4 py-3 rounded-lg">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse" />
-                <span className="font-bold">Recording...</span>
+                <span className="font-bold">
+                  Recording...
+                </span>
               </div>
-              <button onClick={stopRecording} className="bg-white p-2 rounded-full shadow">
+              <button
+                onClick={stopRecording}
+                className="bg-white p-2 rounded-full shadow"
+              >
                 <X className="w-5 h-5 text-red-600" />
               </button>
             </div>
@@ -667,17 +801,31 @@ useEffect(() => {
               <input
                 type="text"
                 value={inputText}
-                onChange={e => setInputText(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSend()}
+                onChange={(e) =>
+                  setInputText(e.target.value)
+                }
+                onKeyDown={(e) =>
+                  e.key === 'Enter' && handleSend()
+                }
                 placeholder="Type a message..."
                 className="flex-1 px-4 py-2 rounded-full bg-gray-100 outline-none"
               />
               {inputText.trim() ? (
-                <button onClick={handleSend} className="p-3 bg-blue-600 text-white rounded-full">
+                <button
+                  onClick={handleSend}
+                  className="p-3 bg-blue-600 text-white rounded-full"
+                >
                   <Send className="w-5 h-5" />
                 </button>
               ) : (
-                <button onClick={() => (isRecording ? stopRecording() : startRecording())} className="p-3 bg-gray-200 rounded-full">
+                <button
+                  onClick={() =>
+                    isRecording
+                      ? stopRecording()
+                      : startRecording()
+                  }
+                  className="p-3 bg-gray-200 rounded-full"
+                >
                   <Mic className="w-5 h-5" />
                 </button>
               )}
@@ -686,5 +834,25 @@ useEffect(() => {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Default export: wraps the hook-using ChatPageInner in Suspense,
+ * which satisfies Next's requirement for CSR bailouts.
+ */
+export default function ChatPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-[calc(100vh-64px)] flex items-center justify-center bg-gray-50">
+          <div className="text-gray-600 text-sm">
+            Loading chat…
+          </div>
+        </div>
+      }
+    >
+      <ChatPageInner />
+    </Suspense>
   );
 }
