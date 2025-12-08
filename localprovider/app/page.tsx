@@ -21,19 +21,20 @@ export default function HomePage() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
 
-  // show only providers within NEARBY_KM when true
+  // show only providers within radiusKm when true
   const [showOnlyNearby, setShowOnlyNearby] = useState(true);
-  const NEARBY_KM = 5;
+  const [radiusKm, setRadiusKm] = useState<number>(5); // default 5 km
 
   // Fetch providers from server
   const fetchProviders = useCallback(
     async (lat?: number, lng?: number) => {
       try {
-        // build query params if we have coords (server may support geo filtering)
         const params = new URLSearchParams();
         if (typeof lat === 'number' && typeof lng === 'number') {
           params.set('lat', String(lat));
           params.set('lng', String(lng));
+          // NOTE: you could also send radiusKm to backend here if you decide later
+          // params.set('radiusKm', String(radiusKm));
         }
         const url = `${BASE_URL}/api/providers${params.toString() ? `?${params.toString()}` : ''}`;
         const res = await fetch(url, { credentials: 'include' });
@@ -43,7 +44,6 @@ export default function HomePage() {
         }
         const list = await res.json();
         if (!Array.isArray(list)) {
-          // some controllers return object or { providers: [...] }
           const arr = (list && (list.providers || list.data)) ? (list.providers || list.data) : [];
           if (!Array.isArray(arr)) throw new Error('Invalid providers response');
           return arr as ServiceProvider[];
@@ -70,15 +70,21 @@ export default function HomePage() {
         setUserCoords(coords);
         setLocationError(null);
 
-        // fetch providers with coords (server may use these to sort/filter)
         const list = await fetchProviders(coords.lat, coords.lng);
         if (!mounted) return;
 
         const enriched = list.map((p: ServiceProvider) => {
-          const hasCoords = typeof (p as any).lat === 'number' && typeof (p as any).lng === 'number';
+          const hasCoords =
+            typeof (p as any).lat === 'number' && typeof (p as any).lng === 'number';
           if (!hasCoords) return { ...(p as ServiceProvider), distanceKm: undefined };
-          const dist = distanceKm(coords, { lat: (p as any).lat as number, lng: (p as any).lng as number });
-          return { ...(p as ServiceProvider), distanceKm: Math.round(dist * 10) / 10 };
+          const dist = distanceKm(coords, {
+            lat: (p as any).lat as number,
+            lng: (p as any).lng as number,
+          });
+          return {
+            ...(p as ServiceProvider),
+            distanceKm: Math.round(dist * 10) / 10,
+          };
         });
 
         // sort by distance if available, otherwise by rating and reviewCount
@@ -86,7 +92,6 @@ export default function HomePage() {
           const ad = a.distanceKm ?? Number.POSITIVE_INFINITY;
           const bd = b.distanceKm ?? Number.POSITIVE_INFINITY;
           if (ad !== bd) return ad - bd;
-          // fallback sort: rating desc then reviewCount desc
           const ra = (a as any).rating ?? 0;
           const rb = (b as any).rating ?? 0;
           if (ra !== rb) return rb - ra;
@@ -98,12 +103,16 @@ export default function HomePage() {
         setProviders(enriched);
       } catch (err: any) {
         console.warn('Location or providers fetch failed:', err?.message || err);
-        setLocationError('Unable to detect location or load providers. Showing available providers.');
+        setLocationError(
+          'Unable to detect location or load providers. Showing available providers.'
+        );
         try {
-          // fallback: fetch providers without coords
           const list = await fetchProviders();
           if (!mounted) return;
-          const fallback = list.map((p: ServiceProvider) => ({ ...(p as ServiceProvider), distanceKm: undefined }));
+          const fallback = list.map((p: ServiceProvider) => ({
+            ...(p as ServiceProvider),
+            distanceKm: undefined,
+          }));
           setProviders(fallback);
         } catch (err2) {
           console.error('fallback fetchProviders failed', err2);
@@ -128,10 +137,17 @@ export default function HomePage() {
 
       const list = await fetchProviders(coords.lat, coords.lng);
       const enriched = list.map((p: ServiceProvider) => {
-        const hasCoords = typeof (p as any).lat === 'number' && typeof (p as any).lng === 'number';
+        const hasCoords =
+          typeof (p as any).lat === 'number' && typeof (p as any).lng === 'number';
         if (!hasCoords) return { ...(p as ServiceProvider), distanceKm: undefined };
-        const dist = distanceKm(coords, { lat: (p as any).lat as number, lng: (p as any).lng as number });
-        return { ...(p as ServiceProvider), distanceKm: Math.round(dist * 10) / 10 };
+        const dist = distanceKm(coords, {
+          lat: (p as any).lat as number,
+          lng: (p as any).lng as number,
+        });
+        return {
+          ...(p as ServiceProvider),
+          distanceKm: Math.round(dist * 10) / 10,
+        };
       });
 
       enriched.sort((a, b) => {
@@ -151,10 +167,14 @@ export default function HomePage() {
     } catch (err) {
       console.warn('retry location failed', err);
       setLocationError('Unable to detect location. Showing all providers.');
-      // try loading without coords
       try {
         const list = await fetchProviders();
-        setProviders(list.map((p: ServiceProvider) => ({ ...(p as ServiceProvider), distanceKm: undefined })));
+        setProviders(
+          list.map((p: ServiceProvider) => ({
+            ...(p as ServiceProvider),
+            distanceKm: undefined,
+          }))
+        );
       } catch {
         setProviders([]);
       }
@@ -163,10 +183,8 @@ export default function HomePage() {
     }
   }, [fetchProviders]);
 
-  // base list (location-sorted if available)
   const baseProviders: ServiceWithDistance[] = providers ?? [];
 
-  // search filter
   const search = searchQuery.trim().toLowerCase();
   const filteredBySearch = search
     ? baseProviders.filter((p) => {
@@ -177,9 +195,11 @@ export default function HomePage() {
       })
     : baseProviders;
 
-  // nearby filter
+  // use radiusKm instead of hard-coded 5
   const displayedProviders = showOnlyNearby
-    ? filteredBySearch.filter((p) => typeof p.distanceKm === 'number' && p.distanceKm <= NEARBY_KM)
+    ? filteredBySearch.filter(
+        (p) => typeof p.distanceKm === 'number' && (p.distanceKm as number) <= radiusKm
+      )
     : filteredBySearch;
 
   return (
@@ -213,11 +233,11 @@ export default function HomePage() {
             </span>
           </h1>
           <p className="max-w-2xl mx-auto text-lg md:text-xl text-gray-300 mb-12 leading-relaxed">
-            Find trusted plumbers, electricians, cleaners and more in your area. Use the toggle to
-            view only providers within {NEARBY_KM} km.
+            Find trusted plumbers, electricians, cleaners and more in your area. Use the distance
+            filter to view only providers near you.
           </p>
 
-          {/* Simple Search Bar */}
+          {/* Search Bar */}
           <div className="max-w-3xl mx-auto relative z-20">
             <div className="relative group">
               <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-emerald-500 rounded-2xl blur opacity-30 group-hover:opacity-60 transition duration-500" />
@@ -253,16 +273,39 @@ export default function HomePage() {
 
       {/* Location Status Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-gray-200">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-white p-3 rounded-xl border border-gray-200">
           <div className="text-sm text-gray-700">
             {locating
               ? 'Detecting your location…'
               : userCoords
-              ? `Showing providers near you (${userCoords.lat.toFixed(3)}, ${userCoords.lng.toFixed(3)})`
+              ? `Showing providers near you (${userCoords.lat.toFixed(
+                  3
+                )}, ${userCoords.lng.toFixed(3)})`
               : locationError ?? 'Location unavailable'}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Distance selector */}
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-gray-600">Radius:</span>
+              <select
+                value={radiusKm}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!Number.isNaN(v) && v > 0) {
+                    setRadiusKm(v);
+                  }
+                }}
+                className="border border-gray-300 rounded-md px-2 py-1 text-sm bg-white"
+              >
+                <option value={2}>2 km</option>
+                <option value={5}>5 km</option>
+                <option value={10}>10 km</option>
+                <option value={20}>20 km</option>
+                <option value={50}>50 km</option>
+              </select>
+            </div>
+
             <button
               onClick={handleRetryLocation}
               className="text-sm bg-blue-600 text-white px-3 py-1 rounded-md"
@@ -275,20 +318,80 @@ export default function HomePage() {
                 const next = !showOnlyNearby;
                 setShowOnlyNearby(next);
                 if (!next) {
-                  // user wants to show all -> don't clear providers, just show all
-                  setUserCoords(null);
+                  // show all: keep providers, just remove distance filter
                   setLocationError(null);
                 } else {
+                  // when turning nearby back on, re-check location
                   handleRetryLocation();
                 }
               }}
               className="text-sm px-3 py-1 rounded-md border"
             >
-              {showOnlyNearby ? `Only within ${NEARBY_KM} km` : 'Show All'}
+              {showOnlyNearby ? `Within ${radiusKm} km` : 'Show All'}
             </button>
           </div>
         </div>
       </div>
+
+      {/* Providers Grid */}
+      <section className="py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-10">
+            <h2 className="text-3xl font-bold text-gray-900">Top Rated Professionals</h2>
+            <p className="text-gray-500 mt-2">
+              {showOnlyNearby
+                ? `Showing providers within ${radiusKm} km`
+                : 'Showing all providers'}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {providers === null ? (
+              <div className="col-span-full py-16 text-center">Loading providers…</div>
+            ) : displayedProviders.length === 0 ? (
+              <div className="text-center py-16 bg-gray-50 rounded-3xl border border-dashed border-gray-300 col-span-full">
+                {showOnlyNearby ? (
+                  <>
+                    <p className="text-gray-500 text-lg mb-4">
+                      No providers found within {radiusKm} km of your location.
+                    </p>
+                    <div className="flex justify-center gap-3">
+                      <button
+                        onClick={() => {
+                          setShowOnlyNearby(false);
+                        }}
+                        className="bg-white border border-gray-300 text-gray-700 px-6 py-2 rounded-lg font-medium hover:bg-gray-50"
+                      >
+                        Show All Providers
+                      </button>
+                      <button
+                        onClick={handleRetryLocation}
+                        className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700"
+                      >
+                        Retry Location
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-gray-500 text-lg mb-4">No providers match your search.</p>
+                )}
+              </div>
+            ) : (
+              displayedProviders.map((provider) => (
+                <div key={(provider as any)._id || (provider as any).id}>
+                  <ServiceCard provider={provider} />
+                  {provider.distanceKm !== undefined &&
+                    provider.distanceKm !== Number.POSITIVE_INFINITY && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        {provider.distanceKm} km away
+                      </div>
+                    )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </section>
 
       {/* Categories Grid */}
       <section className="py-20 bg-gray-50">
@@ -322,64 +425,6 @@ export default function HomePage() {
                 </h3>
               </div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Providers Grid */}
-      <section className="py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-10">
-            <h2 className="text-3xl font-bold text-gray-900">Top Rated Professionals</h2>
-            <p className="text-gray-500 mt-2">
-              {showOnlyNearby
-                ? `Showing providers within ${NEARBY_KM} km`
-                : 'Showing all providers'}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {providers === null ? (
-              <div className="col-span-full py-16 text-center">Loading providers…</div>
-            ) : displayedProviders.length === 0 ? (
-              <div className="text-center py-16 bg-gray-50 rounded-3xl border border-dashed border-gray-300 col-span-full">
-                {showOnlyNearby ? (
-                  <>
-                    <p className="text-gray-500 text-lg mb-4">
-                      No providers found within {NEARBY_KM} km of your location.
-                    </p>
-                    <div className="flex justify-center gap-3">
-                      <button
-                        onClick={() => {
-                          setShowOnlyNearby(false);
-                        }}
-                        className="bg-white border border-gray-300 text-gray-700 px-6 py-2 rounded-lg font-medium hover:bg-gray-50"
-                      >
-                        Show All Providers
-                      </button>
-                      <button
-                        onClick={handleRetryLocation}
-                        className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700"
-                      >
-                        Retry Location
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-gray-500 text-lg mb-4">No providers match your search.</p>
-                )}
-              </div>
-            ) : (
-              displayedProviders.map((provider) => (
-                <div key={(provider as any)._id || (provider as any).id}>
-                  <ServiceCard provider={provider} />
-                  {provider.distanceKm !== undefined &&
-                    provider.distanceKm !== Number.POSITIVE_INFINITY && (
-                      <div className="text-xs text-gray-500 mt-1">{provider.distanceKm} km away</div>
-                    )}
-                </div>
-              ))
-            )}
           </div>
         </div>
       </section>

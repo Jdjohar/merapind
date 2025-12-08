@@ -148,7 +148,7 @@ export default function ProviderDashboard() {
         <div className="flex items-center gap-3">
           <Link href="/provider/services/new" className="px-3 py-2 bg-blue-600 text-white rounded">Add Service</Link>
           <Link href={`/provider/services`} className="px-3 py-2 border rounded">Manage Services</Link>
-          <Link href="/provider/bookings" className="px-3 py-2 border rounded">Bookings</Link>
+          {/* <Link href="/provider/bookings" className="px-3 py-2 border rounded">Bookings</Link> */}
           <Link href={`/provider/edit`} className="px-3 py-2 border rounded">Edit Profile</Link>
         </div>
       </div>
@@ -180,7 +180,7 @@ export default function ProviderDashboard() {
           <h3 className="font-semibold mb-2">Quick actions</h3>
           <ul className="space-y-2">
             <li><Link href="/provider/services" className="text-sm text-blue-600">Manage services ({services.length})</Link></li>
-            <li><Link href="/provider/bookings" className="text-sm text-blue-600">View bookings</Link></li>
+            {/* <li><Link href="/provider/bookings" className="text-sm text-blue-600">View bookings</Link></li> */}
             <li><Link href="/provider/profile" className="text-sm text-blue-600">View public profile</Link></li>
             <li><Link href={`/provider/edit`} className="text-sm text-blue-600">Edit profile</Link></li>
           </ul>

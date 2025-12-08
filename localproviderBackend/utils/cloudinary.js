@@ -10,22 +10,38 @@ cloudinary.config({
 });
 
 /**
- * Upload a local file to Cloudinary and remove the local file.
- * @param {string} localPath - path to local file
- * @param {object} options - optional upload options
- * @returns {Promise<object>} - Cloudinary upload result
+ * Upload a local file path to Cloudinary (used for multer temp file).
+ * options can include folder, resource_type, etc.
  */
 async function uploadLocalFile(localPath, options = {}) {
-  try {
-    const res = await cloudinary.uploader.upload(localPath, options);
-    // remove local file
-    fs.unlink(localPath, (err) => { if (err) console.warn('Failed to delete tmp file', err); });
-    return res;
-  } catch (err) {
-    // attempt remove local file on failure too
-    try { fs.unlink(localPath, () => {}); } catch {}
-    throw err;
-  }
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader.upload(
+      localPath,
+      { resource_type: options.resource_type || 'auto', folder: options.folder || '' },
+      (err, result) => {
+        // optional: remove local file after upload
+        try { fs.unlink(localPath, () => {}); } catch {}
+        if (err) return reject(err);
+        resolve(result);
+      }
+    );
+  });
 }
 
-module.exports = { cloudinary, uploadLocalFile };
+/**
+ * Upload a Buffer/stream to Cloudinary (no disk)
+ */
+function uploadBuffer(buffer, filename = 'upload', options = {}) {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { resource_type: options.resource_type || 'auto', folder: options.folder || '' },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
+    stream.end(buffer);
+  });
+}
+
+module.exports = { cloudinary, uploadLocalFile, uploadBuffer };

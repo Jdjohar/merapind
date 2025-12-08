@@ -6,13 +6,18 @@ import Provider from "../src/models/Provider.js";
 import sendMail from "../utils/email.js";
 
 // Generate JWT
-const signToken = (id) => {
+// Generate JWT (include role)
+const signToken = (user) => {
   return jwt.sign(
-    { id },
+    {
+      id: user._id.toString(),
+      role: user.role
+    },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
   );
 };
+
 
 // --------------------- SIGNUP ---------------------
 export const signup = async (req, res) => {
@@ -34,7 +39,7 @@ export const signup = async (req, res) => {
       role: role || "USER",
     });
 
-    const token = signToken(user._id);
+ const token = signToken(user);
 
     // check if a Provider already exists for this user (unlikely immediately after signup,
     // but safe if you ever create provider records elsewhere)
@@ -71,7 +76,7 @@ export const login = async (req, res) => {
     if (!match)
       return res.status(401).json({ error: "Invalid credentials" });
 
-    const token = signToken(user._id);
+    const token = signToken(user);
 
     // find provider profile (if any) and attach
     const provider = await Provider.findOne({ userId: user._id }).lean();
@@ -161,5 +166,112 @@ export const resetPassword = async (req, res) => {
   } catch (err) {
     console.error("resetPassword", err);
     res.status(500).json({ error: "Server error" });
+  }
+};
+export const getMe = async (req, res) => {
+  try {
+    const userId = req.user && (req.user._id || req.user.id);
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const user = await User.findById(userId).lean();
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // also check if they have a provider profile
+    const provider = await Provider.findOne({ userId: user._id }).lean();
+
+    return res.json({
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt,
+        phone: user.phone,
+        address: user.address,
+        lat: user.lat,
+        lng: user.lng
+      },
+      provider: provider
+        ? {
+            id: provider._id.toString(),
+            name: provider.name,
+            category: provider.category,
+            rating: provider.rating,
+            reviewCount: provider.reviewCount,
+            hourlyRate: provider.hourlyRate,
+            imageUrl: provider.imageUrl,
+            phone: provider.phone,
+            location: provider.location,
+            isVerified: provider.isVerified
+          }
+        : null,
+    });
+  } catch (err) {
+    console.error('getMe', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// --------------------- UPDATE ME (current user profile) ---------------------
+export const updateMe = async (req, res) => {
+  try {
+    const userId = req.user && (req.user._id || req.user.id);
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Allowed fields to update
+    const { name, phone, address, lat, lng } = req.body;
+
+    if (name !== undefined) user.name = name;
+    if (phone !== undefined) user.phone = phone;
+    if (address !== undefined) user.address = address;
+    if (lat !== undefined) user.lat = Number(lat);
+    if (lng !== undefined) user.lng = Number(lng);
+
+    await user.save();
+
+    // include provider summary in response, like getMe
+    const provider = await Provider.findOne({ userId: user._id }).lean();
+
+    return res.json({
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt,
+        phone: user.phone,
+        address: user.address,
+        lat: user.lat,
+        lng: user.lng
+      },
+      provider: provider
+        ? {
+            id: provider._id.toString(),
+            name: provider.name,
+            category: provider.category,
+            rating: provider.rating,
+            reviewCount: provider.reviewCount,
+            hourlyRate: provider.hourlyRate,
+            imageUrl: provider.imageUrl,
+            phone: provider.phone,
+            location: provider.location,
+            isVerified: provider.isVerified
+          }
+        : null,
+    });
+  } catch (err) {
+    console.error('updateMe', err);
+    return res.status(500).json({ error: 'Server error' });
   }
 };

@@ -13,6 +13,8 @@ const ProviderSchema = new mongoose.Schema(
     hourlyRate: { type: Number, required: true },
     description: { type: String, required: true },
     imageUrl: { type: String },
+ // ✅ NEW
+    phone: { type: String },
 
     isVerified: { type: Boolean, default: false },
 

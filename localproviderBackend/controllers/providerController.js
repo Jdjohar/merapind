@@ -1,4 +1,5 @@
 // controllers/providerController.js
+const mongoose = require('mongoose'); // add this near the other requires
 const Provider = require('../src/models/Provider');
 const Review = require('../src/models/Review');
 const User = require('../src/models/User');
@@ -50,7 +51,29 @@ async function handleImageUpload(req, body) {
     }
   }
 }
+exports.getProvider = async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('[getProvider] id=', id);
 
+    // Validate ObjectId early
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid provider id' });
+    }
+
+    const provider = await Provider.findById(id).lean();
+    if (!provider) return res.status(404).json({ error: 'Provider not found' });
+
+    // optional: attach reviews
+    // const reviews = await Review.find({ providerId: provider._id }).lean().catch(() => []);
+    // provider.reviews = reviews;
+
+    return res.json(provider);
+  } catch (err) {
+    console.error('getProvider error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+};
 // Create provider profile (supports file upload)
 exports.createProvider = async (req, res) => {
   try {
