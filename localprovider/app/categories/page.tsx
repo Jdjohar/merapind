@@ -55,7 +55,7 @@ export default function CategoriesPage() {
           {cats.map((c) => (
             <Link
               key={(c as any)._id || (c as any).id || c.slug}
-              href={`/providers?category=${encodeURIComponent(c.slug)}`}
+              href={`/provider?category=${encodeURIComponent(c.slug)}`}
               className="block p-6 bg-white rounded-2xl shadow-sm border hover:shadow-lg transition"
             >
               <div className={`w-14 h-14 mb-4 rounded-2xl flex items-center justify-center ${c.color || 'bg-slate-200'}`}>

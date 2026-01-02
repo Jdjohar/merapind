@@ -178,23 +178,84 @@ exports.deleteProvider = async (req, res) => {
 };
 
 // list providers (public)
+// exports.listProviders = async (req, res) => {
+//   try {
+//     const { lat, lng, radiusKm, category, q } = req.query;
+//     const filter = {};
+//     if (category) filter.category = category;
+//     if (q) {
+//       const regex = new RegExp(q, 'i');
+//       filter.$or = [{ name: regex }, { description: regex }, { location: regex }, { category: regex }];
+//     }
+
+//     let results = await Provider.find(filter).lean();
+
+//     // optional distance calc (same as before)
+//     if (lat && lng) {
+//       const userLat = parseFloat(lat);
+//       const userLng = parseFloat(lng);
+//       const rad = parseFloat(radiusKm || '9999');
+//       results = results.map((p) => {
+//         if (typeof p.lat === 'number' && typeof p.lng === 'number') {
+//           const toRad = (deg) => (deg * Math.PI) / 180;
+//           const R = 6371;
+//           const dLat = toRad(p.lat - userLat);
+//           const dLon = toRad(p.lng - userLng);
+//           const lat1 = toRad(userLat);
+//           const lat2 = toRad(p.lat);
+//           const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+//           const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+//           const distanceKm = R * c;
+//           p.distanceKm = Math.round(distanceKm * 10) / 10;
+//         } else {
+//           p.distanceKm = undefined;
+//         }
+//         return p;
+//       });
+
+//       if (!isNaN(rad)) {
+//         results = results.filter((p) => typeof p.distanceKm === 'number' && p.distanceKm <= rad);
+//       }
+
+//       results.sort((a, b) => (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY));
+//     }
+
+//     res.json(results);
+//   } catch (err) {
+//     console.error('listProviders', err);
+//     res.status(500).json({ error: 'Server error' });
+//   }
+// };
+
+// list providers (public) ✅ FIXED
 exports.listProviders = async (req, res) => {
   try {
     const { lat, lng, radiusKm, category, q } = req.query;
     const filter = {};
-    if (category) filter.category = category;
+
+    // 🔥 FIX: normalize category
+    if (category) {
+      filter.category = category.toLowerCase();
+    }
+
     if (q) {
       const regex = new RegExp(q, 'i');
-      filter.$or = [{ name: regex }, { description: regex }, { location: regex }, { category: regex }];
+      filter.$or = [
+        { name: regex },
+        { description: regex },
+        { location: regex },
+        { category: regex }
+      ];
     }
 
     let results = await Provider.find(filter).lean();
 
-    // optional distance calc (same as before)
+    // distance logic (UNCHANGED)
     if (lat && lng) {
       const userLat = parseFloat(lat);
       const userLng = parseFloat(lng);
       const rad = parseFloat(radiusKm || '9999');
+
       results = results.map((p) => {
         if (typeof p.lat === 'number' && typeof p.lng === 'number') {
           const toRad = (deg) => (deg * Math.PI) / 180;
@@ -203,21 +264,20 @@ exports.listProviders = async (req, res) => {
           const dLon = toRad(p.lng - userLng);
           const lat1 = toRad(userLat);
           const lat2 = toRad(p.lat);
-          const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+          const a =
+            Math.sin(dLat / 2) ** 2 +
+            Math.cos(lat1) * Math.cos(lat2) *
+            Math.sin(dLon / 2) ** 2;
           const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
           const distanceKm = R * c;
           p.distanceKm = Math.round(distanceKm * 10) / 10;
-        } else {
-          p.distanceKm = undefined;
         }
         return p;
       });
 
-      if (!isNaN(rad)) {
-        results = results.filter((p) => typeof p.distanceKm === 'number' && p.distanceKm <= rad);
-      }
-
-      results.sort((a, b) => (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY));
+      results = results.filter(
+        (p) => typeof p.distanceKm === 'number' && p.distanceKm <= rad
+      );
     }
 
     res.json(results);
@@ -226,6 +286,7 @@ exports.listProviders = async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 };
+
 
 // get provider by id
 exports.getProvider = async (req, res) => {

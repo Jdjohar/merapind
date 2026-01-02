@@ -37,7 +37,7 @@ export default function ProviderDashboard() {
           setProvider(localProvider);
         } else {
           // fetch /api/providers/me to confirm provider existence
-          const pRes = await fetch(`${BASE_URL}/api/services/me`, {
+          const pRes = await fetch(`${BASE_URL}/api/providers/me`, {
             credentials: 'include',
             headers: { Authorization: `Bearer ${getTokenFromStorage() || ''}` }
           });
@@ -181,7 +181,7 @@ export default function ProviderDashboard() {
           <ul className="space-y-2">
             <li><Link href="/provider/services" className="text-sm text-blue-600">Manage services ({services.length})</Link></li>
             {/* <li><Link href="/provider/bookings" className="text-sm text-blue-600">View bookings</Link></li> */}
-            <li><Link href="/provider/profile" className="text-sm text-blue-600">View public profile</Link></li>
+            <li><Link href={`/provider/${provider._id}`} className="text-sm text-blue-600">View public profile</Link></li>
             <li><Link href={`/provider/edit`} className="text-sm text-blue-600">Edit profile</Link></li>
           </ul>
         </div>

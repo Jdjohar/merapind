@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Mail, Lock, Chrome, User as UserIcon, Briefcase, ArrowLeft } from 'lucide-react';
+import { Mail, Lock, Chrome, User as UserIcon, Briefcase, ArrowLeft, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import SEO from '../../../components/SEO';
 
@@ -141,6 +141,11 @@ export default function SignupPage() {
             {userType === 'provider' && (
               <div className="group">
                 <label htmlFor="business-name" className="block text-xs font-medium text-gray-700 ml-1 mb-1">Business Name</label>
+                <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Users className="h-5 w-5 text-gray-400" />
+                </div>
+
                 <input
                   id="business-name"
                   name="businessName"
@@ -148,15 +153,22 @@ export default function SignupPage() {
                   value={form.businessName}
                   onChange={(e) => setForm({ ...form, businessName: e.target.value })}
                   required
+                  style={{paddingLeft:'40px'}}
                   className={`appearance-none rounded-xl w-full px-4 py-3.5 border ${errors.businessName ? 'border-rose-400' : 'border-gray-200'} bg-gray-50 focus:bg-white placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm`}
                   placeholder="e.g. Joe's Plumbing"
                 />
+                  </div>
                 {errors.businessName && <p className="text-rose-600 text-sm mt-1">{errors.businessName}</p>}
               </div>
             )}
 
             <div>
               <label htmlFor="name" className="block text-xs font-medium text-gray-700 ml-1 mb-1">Full name</label>
+               <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Users className="h-5 w-5 text-gray-400" />
+                </div>
+              
               <input
                 id="name"
                 name="name"
@@ -164,9 +176,11 @@ export default function SignupPage() {
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
+                style={{paddingLeft:'40px'}}
                 className={`appearance-none rounded-xl w-full px-4 py-3.5 border ${errors.name ? 'border-rose-400' : 'border-gray-200'} bg-gray-50 focus:bg-white placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm`}
                 placeholder="Jane Doe"
               />
+               </div>
               {errors.name && <p className="text-rose-600 text-sm mt-1">{errors.name}</p>}
             </div>
 
@@ -182,6 +196,7 @@ export default function SignupPage() {
                   type="email"
                   autoComplete="email"
                   value={form.email}
+                     style={{paddingLeft:'40px'}}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   required
                   className={`appearance-none rounded-xl w-full pl-11 px-4 py-3.5 border ${errors.email ? 'border-rose-400' : 'border-gray-200'} bg-gray-50 focus:bg-white placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm`}
@@ -199,6 +214,7 @@ export default function SignupPage() {
                 </div>
                 <input
                   id="password"
+                  style={{paddingLeft:'40px'}}
                   name="password"
                   type="password"
                   autoComplete="new-password"
@@ -214,17 +230,23 @@ export default function SignupPage() {
 
             <div>
               <label htmlFor="confirmPassword" className="block text-xs font-medium text-gray-700 ml-1 mb-1">Confirm password</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-gray-400" />
+                </div>
               <input
                 id="confirmPassword"
                 name="confirmPassword"
                 type="password"
                 autoComplete="new-password"
+                style={{paddingLeft:'40px'}}
                 value={form.confirmPassword}
                 onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
                 required
                 className={`appearance-none rounded-xl w-full px-4 py-3.5 border ${errors.confirmPassword ? 'border-rose-400' : 'border-gray-200'} bg-gray-50 focus:bg-white placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm`}
                 placeholder="Repeat password"
               />
+              </div>
               {errors.confirmPassword && <p className="text-rose-600 text-sm mt-1">{errors.confirmPassword}</p>}
             </div>
           </div>

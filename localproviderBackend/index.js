@@ -6,7 +6,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
 dotenv.config();
-
+require('./cron');  
 const connectDB = require('./src/config/db');
 const authRoutes = require('./src/routes/auth');
 const providerRoutes = require('./src/routes/providers');
