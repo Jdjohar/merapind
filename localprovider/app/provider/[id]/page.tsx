@@ -298,7 +298,7 @@ export default function ProviderDetailPageClient() {
                   )}
                 </div>
 
-                <h1 className="text-2xl md:text-4xl font-bold mt-2 mb-1">
+                <h1 className="text-2xl text-gray-900 md:text-4xl font-bold mt-2 mb-1">
                   {title}
                 </h1>
 
@@ -308,11 +308,11 @@ export default function ProviderDetailPageClient() {
                     {provider.location || '—'}
                   </span>
                   <span className="flex items-center text-yellow-400 md:text-yellow-500 font-bold">
-                    <Star className="w-4 h-4 mr-1" />{' '}
-                    {provider.rating ?? '—'}
-                    <span className="text-gray-400 md:text-gray-500 font-normal ml-1">
+                    {/* <Star className="w-4 h-4 mr-1" />{' '}
+                    {provider.rating ?? '—'} */}
+                    {/* <span className="text-gray-400 md:text-gray-500 font-normal ml-1">
                       ({provider.reviewCount ?? 0} reviews)
-                    </span>
+                    </span> */}
                   </span>
                 </div>
               </div>
@@ -470,7 +470,7 @@ export default function ProviderDetailPageClient() {
                   </div>
                 </section> */}
 
-                <section>
+                {/* <section>
                   <h2 className="text-xl font-bold text-gray-900 mb-6">
                     Customer Reviews
                   </h2>
@@ -517,7 +517,7 @@ export default function ProviderDetailPageClient() {
                       <p className="text-gray-500 italic">No reviews yet.</p>
                     )}
                   </div>
-                </section>
+                </section> */}
               </div>
 
               <div className="space-y-6">

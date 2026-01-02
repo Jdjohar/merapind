@@ -1,7 +1,7 @@
 const cron = require('cron');
 const https = require('https');
 
-const backendUrl = 'https://mauryaelectronics.onrender.com';
+const backendUrl = 'https://merapind.onrender.com';
 
 const job = new cron.CronJob('*/14 * * * *', function () {
   // This function will be executed every 14 minutes.
