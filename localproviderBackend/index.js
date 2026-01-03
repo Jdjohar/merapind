@@ -16,6 +16,18 @@ const categoryRoutes = require('./src/routes/categories');
 const servicesRoutes = require('./src/routes/providerServices');
 const uploadRoutes = require('./src/routes/uploads');
 
+const adminAuthRoutes = require('./src/admin/routes/auth.routes');
+const adminDashboardRoutes = require('./src/admin/routes/dashboard.routes');
+const adminUserRoutes = require('./src/admin/routes/users.routes');
+const adminProviderRoutes = require('./src/admin/routes/providers.routes');
+const adminReviewRoutes = require('./src/admin/routes/reviews.routes');
+const adminAuditRoutes = require('./src/admin/routes/audit.routes');
+const adminServiceRoutes = require('./src/admin/routes/services.routes');
+const adminCategoryRoutes = require('./src/admin/routes/categories.routes');
+
+const cookieParser = require('cookie-parser');
+
+
 const jwt = require('jsonwebtoken');
 const Chat = require('./src/models/Chat');
 const Provider = require('./src/models/Provider');
@@ -37,7 +49,8 @@ const io = new Server(server, {
       "http://localhost:3000",
       "https://merapind-eight.vercel.app"
     ],
-    methods: ["GET", "POST"],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS", "PUT", "HEAD"],
     credentials: true,
   }
 });
@@ -162,7 +175,7 @@ connectDB();
 app.use(helmet());
 app.use(express.json());
 app.use(morgan('dev'));
-
+app.use(cookieParser());
 const allowedOrigins = [
   "http://localhost:3000",
   "https://merapind-eight.vercel.app"
@@ -193,6 +206,15 @@ app.use('/api/chats', chatRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/services', servicesRoutes);
 app.use('/api/uploads', uploadRoutes);
+
+app.use('/api/admin/auth', adminAuthRoutes);
+app.use('/api/admin/dashboard', adminDashboardRoutes);
+app.use('/api/admin/users', adminUserRoutes);
+app.use('/api/admin/providers', adminProviderRoutes);
+// app.use('/api/admin/reviews', adminReviewRoutes);
+app.use('/api/admin/audit-logs', adminAuditRoutes);
+app.use('/api/admin/services', adminServiceRoutes);
+app.use('/api/admin/categories', adminCategoryRoutes);
 
 // Error handler
 app.use((err, req, res, next) => {

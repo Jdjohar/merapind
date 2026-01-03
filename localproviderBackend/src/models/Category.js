@@ -5,7 +5,8 @@ const CategorySchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     slug: { type: String, required: true, unique: true },
-    color: { type: String }
+    color: { type: String },
+    order: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

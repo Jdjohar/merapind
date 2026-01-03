@@ -22,7 +22,9 @@ const ServiceSchema = new mongoose.Schema(
     location: { type: String }, // optional location string
 
     isActive: { type: Boolean, default: true },
-    meta: { type: Object } // free-form metadata (optional)
+    meta: { type: Object }, // free-form metadata (optional)
+    isDeleted: { type: Boolean, default: false, index: true }
+
   },
   { timestamps: true }
 );

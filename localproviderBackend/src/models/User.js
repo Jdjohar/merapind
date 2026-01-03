@@ -1,4 +1,3 @@
-// src/models/User.js
 const mongoose = require('mongoose');
 
 const UserSchema = new mongoose.Schema(
@@ -7,11 +6,10 @@ const UserSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
 
-    // Roles
     role: {
       type: String,
-      enum: ["USER", "PROVIDER"],
-      default: "USER",
+      enum: ['USER', 'PROVIDER'],
+      default: 'USER',
     },
 
     phone: String,
@@ -19,7 +17,20 @@ const UserSchema = new mongoose.Schema(
     lat: Number,
     lng: Number,
 
-    // Password reset fields (used by authController)
+    // ✅ ADMIN CONTROL FLAGS
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true
+    },
+
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
+
+    // Password reset
     resetPasswordToken: String,
     resetPasswordExpires: Date
   },

@@ -13,6 +13,7 @@ cloudinary.config({
  * Upload a local file path to Cloudinary (used for multer temp file).
  * options can include folder, resource_type, etc.
  */
+
 async function uploadLocalFile(localPath, options = {}) {
   return new Promise((resolve, reject) => {
     cloudinary.uploader.upload(
