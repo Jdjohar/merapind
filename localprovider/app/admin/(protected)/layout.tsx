@@ -1,39 +1,41 @@
 'use client';
 
-import { useEffect } from 'react';
-import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { requireAdminClient, adminLogout } from '@/app/lib/auth';
+import Header from './components/Header';
+import Sidebar from './components/Sidebar';
+import '../admin.css';
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+
   useEffect(() => {
     requireAdminClient();
   }, []);
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="w-64 bg-black text-white p-4 flex flex-col">
-        <nav className="space-y-2 flex flex-col flex-1">
-          <Link href="/admin/dashboard">Dashboard</Link>
-          <Link href="/admin/users">Users</Link>
-          <Link href="/admin/providers">Providers</Link>
-          <Link href="/admin/category">Categories</Link>
-          <Link href="/admin/reviews">Reviews</Link>
-          <Link href="/admin/audit-logs">Audit Logs</Link>
-        </nav>
+    <div className="min-h-screen bg-slate-100 flex">
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        currentPath={pathname}
+        onNavigate={(path) => router.push(path)}
+        onLogout={adminLogout}
+      />
 
-        <button
-          onClick={adminLogout}
-          className="mt-4 text-left text-red-400 hover:text-red-300"
-        >
-          Logout
-        </button>
-      </aside>
+      <div className="flex-1 flex flex-col lg:ml-72">
+        <Header
+          title="Admin Dashboard"
+          onMenuToggle={() => setSidebarOpen(true)}
+        />
 
-      <main className="flex-1 p-6 bg-gray-100">{children}</main>
+        <main className="flex-1 p-4 sm:p-6">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

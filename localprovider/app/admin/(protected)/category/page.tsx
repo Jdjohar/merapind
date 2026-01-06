@@ -7,14 +7,20 @@ type Category = {
   _id: string;
   name: string;
   slug: string;
-  color: string;
+  color: keyof typeof COLOR_STYLES;
   order: number;
   providerCount?: number;
 };
 
-const COLORS = [
-  'green','blue','red','yellow','purple','amber','cyan',
-];
+const COLOR_STYLES = {
+  green: 'bg-green-50 text-green-600',
+  blue: 'bg-blue-50 text-blue-600',
+  red: 'bg-red-50 text-red-600',
+  yellow: 'bg-yellow-50 text-yellow-600',
+  purple: 'bg-purple-50 text-purple-600',
+  amber: 'bg-amber-50 text-amber-600',
+  cyan: 'bg-cyan-50 text-cyan-600',
+};
 
 function slugify(text: string) {
   return text
@@ -27,103 +33,110 @@ function slugify(text: string) {
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [name, setName] = useState('');
-  const [color, setColor] = useState('green');
+  const [color, setColor] = useState<Category['color']>('green');
   const [order, setOrder] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const slugPreview = slugify(name);
 
   async function loadCategories() {
-    setLoading(true);
     const data = await adminFetch('/api/admin/categories/with-counts');
     setCategories(data);
-    setLoading(false);
   }
 
   useEffect(() => {
-    loadCategories();
+    loadCategories()
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  async function createCategory(e: React.FormEvent) {
-    e.preventDefault();
+async function createCategory(e: React.FormEvent) {
+  e.preventDefault();
+  if (!name) return alert('Category name is required');
 
-    if (!name) {
-      alert('Category name is required');
-      return;
-    }
+  await adminFetch('/api/admin/categories', {
+    method: 'POST',
+    body: { name, color, order },
+  });
 
-    await adminFetch('/api/admin/categories', {
-      method: 'POST',
-      body: {
-        name,
-        color,
-        order
-      }
-    });
+  setName('');
+  setColor('green');
+  setOrder(0);
+  loadCategories();
+}
 
-    setName('');
-    setColor('green');
-    setOrder(0);
-    loadCategories();
-  }
 
-  async function updateOrder(id: string, value: number) {
-    await adminFetch(`/api/admin/categories/${id}/order`, {
-      method: 'PATCH',
-      body: { order: value }
-    });
+async function updateOrder(id: string, value: number) {
+  await adminFetch(`/api/admin/categories/${id}/order`, {
+    method: 'PATCH',
+    body: { order: value },
+  });
 
-    setCategories((prev) =>
-      prev.map((c) =>
-        c._id === id ? { ...c, order: value } : c
-      )
-    );
-  }
+  setCategories((prev) =>
+    prev.map((c) => (c._id === id ? { ...c, order: value } : c))
+  );
+}
+
 
   async function deleteCategory(id: string) {
     if (!confirm('Delete this category?')) return;
 
     await adminFetch(`/api/admin/categories/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
     });
 
     loadCategories();
   }
 
-  if (loading) return <p>Loading categories…</p>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Categories</h1>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-xl border shadow-sm">
+        <h1 className="text-xl font-bold text-slate-800">
+          System Categories
+        </h1>
+      </div>
 
-      {/* CREATE CATEGORY */}
+      {/* Create Category */}
       <form
         onSubmit={createCategory}
-        className="bg-white p-4 rounded-xl shadow mb-8 grid grid-cols-6 gap-4 items-end"
+        className="bg-white p-4 rounded-xl border shadow-sm grid grid-cols-1 md:grid-cols-6 gap-4 items-end"
       >
-        <div className="col-span-2">
-          <label className="text-sm font-medium">Name</label>
+        <div className="md:col-span-2">
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+            Name
+          </label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full border p-2 rounded"
+            className="mt-1 w-full px-3 py-2 border rounded-lg text-sm"
             placeholder="Gardening"
           />
           {name && (
-            <p className="text-xs text-gray-500 mt-1">
-              Slug: <span className="font-mono">{slugPreview}</span>
+            <p className="text-xs text-slate-500 mt-1 font-mono">
+              {slugPreview}
             </p>
           )}
         </div>
 
         <div>
-          <label className="text-sm font-medium">Color</label>
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+            Color
+          </label>
           <select
             value={color}
-            onChange={(e) => setColor(e.target.value)}
-            className="w-full border p-2 rounded capitalize"
+            onChange={(e) => setColor(e.target.value as Category['color'])}
+            className="mt-1 w-full px-3 py-2 border rounded-lg text-sm capitalize"
           >
-            {COLORS.map((c) => (
+            {Object.keys(COLOR_STYLES).map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
@@ -132,73 +145,111 @@ export default function CategoriesPage() {
         </div>
 
         <div>
-          <label className="text-sm font-medium">Order</label>
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+            Order
+          </label>
           <input
             type="number"
             value={order}
             onChange={(e) => setOrder(Number(e.target.value))}
-            className="w-full border p-2 rounded"
+            className="mt-1 w-full px-3 py-2 border rounded-lg text-sm"
           />
         </div>
 
-        {/* PREVIEW */}
-        <div
-          className={`w-14 h-14 rounded-2xl flex items-center justify-center
-          bg-${color}-100 text-${color}-600 font-bold`}
-        >
-          {name ? name[0].toUpperCase() : 'A'}
+        <div className="flex justify-center">
+          <div
+            className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold ${COLOR_STYLES[color]}`}
+          >
+            {name ? name[0].toUpperCase() : 'A'}
+          </div>
         </div>
 
-        <button className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800">
-          Add
+        <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700">
+          Add Category
         </button>
       </form>
 
-      {/* CATEGORY GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {categories.map((c) => (
-          <div
-            key={c._id}
-            className="p-6 bg-white rounded-2xl shadow-sm border hover:shadow-md transition"
-          >
-            <div
-              className={`w-14 h-14 mb-4 rounded-2xl flex items-center justify-center
-              bg-${c.color}-100 text-${c.color}-600 font-bold`}
-            >
-              {c.name[0]}
-            </div>
+      {/* Categories Table */}
+      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b">
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">
+                  Category
+                </th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">
+                  Providers
+                </th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">
+                  Order
+                </th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">
+                  Actions
+                </th>
+              </tr>
+            </thead>
 
-            <div className="font-semibold text-gray-900">
-              {c.name}
-            </div>
+            <tbody className="divide-y divide-slate-100">
+              {categories.map((c) => (
+                <tr key={c._id} className="hover:bg-slate-50">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${COLOR_STYLES[c.color]}`}
+                      >
+                        {c.name[0]}
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-slate-900">
+                          {c.name}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {c.slug}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
 
-            <div className="text-xs text-gray-500 mb-2">
-              {c.slug}
-            </div>
+                  <td className="px-6 py-4 text-sm text-slate-600">
+                    {c.providerCount ?? 0}
+                  </td>
 
-            <div className="text-sm text-gray-600 mb-3">
-              {c.providerCount ?? 0} providers
-            </div>
+                  <td className="px-6 py-4">
+                    <input
+                      type="number"
+                      value={c.order || 0}
+                      onChange={(e) =>
+                        updateOrder(c._id, Number(e.target.value))
+                      }
+                      className="w-20 px-2 py-1 border rounded text-sm"
+                    />
+                  </td>
 
-            <div className="flex items-center justify-between">
-              <input
-                type="number"
-                value={c.order || 0}
-                onChange={(e) =>
-                  updateOrder(c._id, Number(e.target.value))
-                }
-                className="w-16 border rounded px-2 py-1 text-sm"
-              />
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      onClick={() => deleteCategory(c._id)}
+                      className="text-xs font-bold text-red-600 hover:underline"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
 
-              <button
-                onClick={() => deleteCategory(c._id)}
-                className="text-xs text-red-600 hover:underline"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        ))}
+              {categories.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-6 py-10 text-center text-slate-400 text-sm"
+                  >
+                    No categories found
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

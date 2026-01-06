@@ -114,7 +114,7 @@ export default function Navbar() {
     `text-sm px-2 py-1 rounded ${pathname === href ? 'text-blue-600 font-semibold' : 'text-gray-600 hover:text-gray-800'}`;
 
   return (
-    <nav className="w-full bg-white/90 border-b border-gray-200">
+    <nav className="w-full bg-white/90 border-b border-gray-200" id='navbar'>
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/" className="text-lg font-bold text-blue-600">Mera Pind</Link>
